@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Student Information Form</title>
+    <script src="https://www.gstatic.com/firebasejs/8.6.7/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.6.7/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.6.7/firebase-database.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');
+        .error {
+            color: red;
+        }
+        * {
+            font-family: "Montserrat", sans-serif;
+        }
+        body {
+            background-image: url('site_bg.png');
+            background-repeat: no-repeat;
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+        }
+        .contents {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: justify;
+            min-height: 100vh;
+        }
+        h1, h2 {
+            color: #760811;
+            font-size: 38px;
+        }
+        #studentForm {
+            font-size: 20px;
+            font-weight: 500;
+        }
+        input {
+            font-size: 18px;
+            width: 393px;
+        }
+        #department {
+            width: 400px;
+            font-size: 17px;
+        }
+        .submit_btn {
+            font-size: 18px;
+            background-color: #760811;
+            color: azure;
+            padding: 10px;
+            padding-left: 79px;
+            padding-right: 79px;
+        }
+        #reminderText {
+            /* position: absolute;
+            padding: 10px;
+            left: 381px;
+            background: rgba(255, 250, 249, 0.5);
+            border-radius: 10px; */
+            font-weight: 400;
+            padding: 10px;
+            background: rgba(255, 250, 249, 0.5);
+            border-radius: 10px;
+            display: none;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="contents">
+        <h1>Student Information Form</h1>
+        <form id="studentForm">
+            <label class="studId" for="studentId" class="studId">Student ID:</label><br>
+            <input type="text" id="studentId" name="studentId" required pattern="\d{2}-\d{4}" title="Student ID format should be NN-NNNN"><br>
+            <span id="studentIdError" class="error"></span><br>
+            
+            <label class="studName"for="name">Name:</label><br>
+            <input type="text" id="name" name="name" required pattern="[A-Za-z\s]+" title="Name should only contain letters and spaces"><br>
+            <span id="nameError" class="error"></span><br>
+            
+            <label class="studDept" for="department">Department:</label><br>
+            <select id="department" name="department" required>
+                <option value="">Select Department</option>
+                <option value="CCMS">College of Computing and Multimedia Studies</option>
+                <option value="CBPA">College of Business and Public Administration</option>
+                <option value="CANR">College of Agriculture and Natural Resources</option>
+                <option value="COTT">College of Trades and Technology</option>
+                <option value="IFMS">Institute of Fisheries and Marine Sciences</option>
+                <option value="COENG">College of Engineering</option>
+                <option value="COED">College of Education</option>
+                <option value="CAS">College of Arts and Sciences</option>
+            </select><br><br>
+            
+            <input class="submit_btn" type="submit" value="Submit">
+        </form>
+        <h2>Generated Barcode:</h2>
+        <svg id="barcode"></svg>
+        <p id="reminderText" style="display:none;">Please take a screenshot or photo of the generated barcode for future use of locker.</p>
+    </div>
+
+    <script>
+        // Your web app's Firebase configuration
+        var firebaseConfig = {
+            apiKey: "AIzaSyD9Y1mQQ5-tRQjUFzTI_N8MGNVHUP0SHbM",
+            authDomain: "locker-2acb5.firebaseapp.com",
+            databaseURL: "https://locker-2acb5-default-rtdb.firebaseio.com",
+            projectId: "locker-2acb5",
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+
+        // Reference to the database service
+        var database = firebase.database();
+
+        // Handle form submission
+        document.getElementById('studentForm').addEventListener('submit', submitForm);
+
+        function submitForm(e) {
+            e.preventDefault();
+
+            var studentId = document.getElementById('studentId').value;
+            var name = document.getElementById('name').value;
+            var department = document.getElementById('department').value;
+
+            // Clear previous errors
+            clearErrors();
+
+            if (!validateForm(studentId, name, department)) {
+                return;
+            }
+
+            checkStudentIdExists(studentId, function(exists) {
+                if (exists) {
+                    alert('Student ID already exists. Please use a different ID.');
+                } else {
+                    saveStudentData(studentId, name, department);
+                    generateBarcode(studentId);
+                    document.getElementById('studentForm').reset();
+                    document.getElementById('reminderText').style.display = 'block';
+                }
+            });
+        }
+
+        function validateForm(studentId, name, department) {
+            let isValid = true;
+
+            if (!/^\d{2}-\d{4}$/.test(studentId)) {
+                document.getElementById('studentIdError').innerText = "Invalid Student ID format.";
+                isValid = false;
+            }
+
+            if (!/^[A-Za-z\s]+$/.test(name)) {
+                document.getElementById('nameError').innerText = "Name should only contain letters and spaces.";
+                isValid = false;
+            }
+
+            if (department === "") {
+                alert("Please select a department.");
+                isValid = false;
+            }
+
+            return isValid;
+        }
+
+        function clearErrors() {
+            document.getElementById('studentIdError').innerText = "";
+            document.getElementById('nameError').innerText = "";
+        }
+
+        function checkStudentIdExists(studentId, callback) {
+            firebase.database().ref('Students/' + studentId).once('value').then(function(snapshot) {
+                callback(snapshot.exists());
+            }).catch(function(error) {
+                alert('Failed to check Student ID: ' + error.message);
+                callback(false);
+            });
+        }
+
+        function saveStudentData(studentId, name, department) {
+            firebase.database().ref('Students/' + studentId).set({
+                Name: name,
+                Department: department
+            }).then(function() {
+                alert('Student data saved successfully.');
+            }).catch(function(error) {
+                alert('Failed to save student data: ' + error.message);
+            });
+        }
+
+        function generateBarcode(studentId) {
+            JsBarcode("#barcode", studentId, {
+                format: "CODE128",
+                displayValue: true,
+                fontSize: 18
+            });
+        }
+    </script>
+</body>
+</html>
